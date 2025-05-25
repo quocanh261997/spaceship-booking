@@ -22,7 +22,7 @@ import {
 import { TripService } from '@/modules/trip/trip.service';
 import { RequestTripDto } from '@/modules/trip/dto/request-trip.dto';
 import { TripStatusDto } from '@/modules/trip/dto/trip-status.dto';
-import { AlternativeTimeResponseDto } from '@/modules/trip/dto/trip-response.dto';
+import { AlternativeTimeOfferDto } from './dto/alternative-time-offer.dto';
 import { ErrorResponseDto } from '@/modules/trip/dto/trip-response.dto';
 
 @ApiTags('trips')
@@ -46,7 +46,12 @@ export class TripController {
   @ApiResponse({
     status: 200,
     description: 'Alternative time offered (requested time unavailable)',
-    type: AlternativeTimeResponseDto,
+    type: AlternativeTimeOfferDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request or no availability',
+    type: ErrorResponseDto,
   })
   @ApiBadRequestResponse({
     description: 'Invalid request data',
@@ -55,7 +60,7 @@ export class TripController {
   async requestTrip(
     @Body(new ValidationPipe({ transform: true, whitelist: true }))
     dto: RequestTripDto,
-  ): Promise<TripStatusDto> {
+  ): Promise<TripStatusDto | AlternativeTimeOfferDto> {
     this.logger.log(`POST /trips/request - ${JSON.stringify(dto)}`);
     return this.tripService.requestTrip(dto);
   }

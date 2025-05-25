@@ -7,6 +7,8 @@ import { LocationService } from '../location/location.service';
 import { RequestTripDto } from './dto/request-trip.dto';
 import { TripStatusDto } from './dto/trip-status.dto';
 import { TimeCalculator, DateUtils } from '@common/utils';
+import { Cron } from '@nestjs/schedule';
+import { AlternativeTimeOfferDto } from './dto/alternative-time-offer.dto';
 
 @Injectable()
 export class TripService {
@@ -24,30 +26,27 @@ export class TripService {
    * Request a new trip
    * Uses database transactions to ensure consistency when multiple requests come in simultaneously
    */
-  async requestTrip(dto: RequestTripDto): Promise<TripStatusDto> {
+  async requestTrip(dto: RequestTripDto): Promise<TripStatusDto | AlternativeTimeOfferDto> {
     this.logger.log(`Requesting trip from ${dto.departureLocationCode} to ${dto.destinationLocationCode}`);
 
     // Validate the request
     await this.validateTripRequest(dto);
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction('SERIALIZABLE'); // Highest isolation level for FIFO queue
+    const requestedDepartureTime = DateUtils.parseISOString(dto.departureAt);
 
-    try {
-      const requestedDepartureTime = DateUtils.parseISOString(dto.departureAt);
+    // Find available spaceships at departure location and time
+    const availableSpaceships = await this.spaceshipService.findAvailableSpaceships(
+      dto.departureLocationCode,
+      requestedDepartureTime,
+    );
 
-      // Find available spaceships at departure location and time
-      const availableSpaceships = await this.spaceshipService.findAvailableSpaceships(
-        dto.departureLocationCode,
-        requestedDepartureTime,
-      );
+    if (availableSpaceships.length > 0) {
+      // We have an available spaceship - proceed with booking
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction('SERIALIZABLE');
 
-      let tripDetails: Partial<Trip>;
-      let alternativeTimeOffered = false;
-
-      if (availableSpaceships.length > 0) {
-        // Use the first available spaceship (FIFO)
+      try {
         const selectedSpaceship = availableSpaceships[0];
         this.logger.log(`Selected spaceship ${selectedSpaceship.id} for immediate departure`);
 
@@ -58,60 +57,69 @@ export class TripService {
           requestedDepartureTime,
         );
 
-        tripDetails = {
+        // Create and save the trip
+        const trip = this.tripRepository.create({
           spaceshipId: selectedSpaceship.id,
           departureLocationCode: dto.departureLocationCode,
           destinationLocationCode: dto.destinationLocationCode,
           departureAt: requestedDepartureTime,
           arrivalAt: travelDetails.arrivalTime,
           status: TripStatus.SCHEDULED,
+        });
+
+        const savedTrip = await queryRunner.manager.save(Trip, trip);
+        await queryRunner.commitTransaction();
+
+        this.logger.log(`Trip ${savedTrip.id} created successfully`);
+
+        // Return trip status
+        return {
+          tripId: savedTrip.id,
+          spaceshipId: savedTrip.spaceshipId,
+          departureLocationCode: savedTrip.departureLocationCode,
+          destinationLocationCode: savedTrip.destinationLocationCode,
+          departureAt: savedTrip.departureAt.toISOString(),
+          arrivalAt: savedTrip.arrivalAt.toISOString(),
+          status: 'SCHEDULED',
         };
-      } else {
-        // No spaceship available - find earliest available
-        this.logger.log('No spaceship available at requested time, finding alternatives');
-        alternativeTimeOffered = true;
+      } catch (error) {
+        await queryRunner.rollbackTransaction();
+        throw error;
+      } finally {
+        await queryRunner.release();
+      }
+    } else {
+      // No spaceship available - find and return alternative time without saving
+      this.logger.log('No spaceship available at requested time, finding alternatives');
 
-        const earliestAvailable = await this.findEarliestAvailableSpaceship(
-          dto.departureLocationCode,
-          dto.destinationLocationCode,
-          requestedDepartureTime,
-        );
+      const earliestAvailable = await this.findEarliestAvailableSpaceship(
+        dto.departureLocationCode,
+        dto.destinationLocationCode,
+        requestedDepartureTime,
+      );
 
-        if (!earliestAvailable) {
-          throw new BadRequestException('No spaceships available for this route. All spaceships are fully booked.');
-        }
-
-        tripDetails = earliestAvailable;
+      if (!earliestAvailable) {
+        throw new BadRequestException('No spaceships available for this route. All spaceships are fully booked.');
       }
 
-      // Create and save the trip
-      const trip = this.tripRepository.create(tripDetails);
-      const savedTrip = await queryRunner.manager.save(Trip, trip);
+      // Return alternative time offer without saving to database
+      if (!earliestAvailable.spaceshipId || !earliestAvailable.departureLocationCode || 
+          !earliestAvailable.destinationLocationCode || !earliestAvailable.departureAt || 
+          !earliestAvailable.arrivalAt) {
+        throw new Error('Invalid trip details returned for alternative time offer');
+      }
 
-      await queryRunner.commitTransaction();
-
-      this.logger.log(`Trip ${savedTrip.id} created successfully`);
-
-      // Return trip status
-      const response: TripStatusDto = {
-        tripId: savedTrip.id,
-        spaceshipId: savedTrip.spaceshipId,
-        departureLocationCode: savedTrip.departureLocationCode,
-        destinationLocationCode: savedTrip.destinationLocationCode,
-        departureAt: savedTrip.departureAt.toISOString(),
-        arrivalAt: savedTrip.arrivalAt.toISOString(),
+      return {
+        tripId: '', // No trip ID since it's not saved yet
+        spaceshipId: earliestAvailable.spaceshipId,
+        departureLocationCode: earliestAvailable.departureLocationCode,
+        destinationLocationCode: earliestAvailable.destinationLocationCode,
+        departureAt: earliestAvailable.departureAt.toISOString(),
+        arrivalAt: earliestAvailable.arrivalAt.toISOString(),
+        status: 'ALTERNATIVE_TIME_OFFERED',
+        message: 'No spaceship available at requested time. Please confirm if you would like to book for the alternative time shown.',
+        isProposal: true,
       };
-
-      if (alternativeTimeOffered) {
-        response.status = 'ALTERNATIVE_TIME_OFFERED';
-      }
-
-      return response;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
     }
   }
 
@@ -359,8 +367,9 @@ export class TripService {
   }
 
   /**
-   * Update trip statuses (could be run as a scheduled job)
+   * Update trip statuses (run every 15 minutes)
    */
+  @Cron('*/15 * * * *')
   async updateTripStatuses(): Promise<void> {
     const now = new Date();
 

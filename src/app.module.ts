@@ -5,6 +5,7 @@ import { getDatabaseConfig } from './config/database.config';
 import { SpaceshipModule } from '@/modules/spaceship/spaceship.module';
 import { TripModule } from '@/modules/trip/trip.module';
 import { LocationModule } from '@/modules/location/location.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { LocationModule } from '@/modules/location/location.module';
     TripModule,
     SpaceshipModule,
     LocationModule,
+    ScheduleModule.forRoot(),
   ],
 })
 export class AppModule {}
