@@ -117,8 +117,6 @@ export class TripController {
     return this.tripService.getTripStatus(tripId);
   }
 
-  // Additional endpoints that might be useful
-
   @Get()
   @ApiOperation({
     summary: 'Get all trips',

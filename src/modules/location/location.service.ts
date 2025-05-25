@@ -10,9 +10,6 @@ import { LocationRepository } from './location.repository';
 export class LocationService {
   constructor(private locationRepository: LocationRepository) {}
 
-  /**
-   * Get all locations
-   */
   async findAll(): Promise<LocationDto[]> {
     const locations = await this.locationRepository.find({
       order: { code: 'ASC' },
@@ -21,9 +18,6 @@ export class LocationService {
     return locations.map(this.toDto);
   }
 
-  /**
-   * Get a specific location by code
-   */
   async findByCode(code: string): Promise<Location> {
     const location = await this.locationRepository.findOne({
       where: { code: code.toUpperCase() },
@@ -36,9 +30,6 @@ export class LocationService {
     return location;
   }
 
-  /**
-   * Check if a location exists
-   */
   async exists(code: string): Promise<boolean> {
     const count = await this.locationRepository.count({
       where: { code: code.toUpperCase() },
@@ -47,10 +38,6 @@ export class LocationService {
     return count > 0;
   }
 
-  /**
-   * Validate multiple location codes
-   * @throws NotFoundException if any location doesn't exist
-   */
   async validateLocationCodes(codes: string[]): Promise<void> {
     const uniqueCodes = [...new Set(codes.map((c) => c.toUpperCase()))];
 
@@ -65,11 +52,7 @@ export class LocationService {
     }
   }
 
-  /**
-   * Calculate distance between two locations
-   */
   async calculateDistance(fromCode: string, toCode: string): Promise<DistanceCalculationDto> {
-    // Check pre-calculated distances first
     const preCalculated = DistanceCalculator.getPreCalculatedDistance(fromCode.toUpperCase(), toCode.toUpperCase());
 
     if (preCalculated !== null) {
@@ -81,7 +64,6 @@ export class LocationService {
       };
     }
 
-    // If not pre-calculated, calculate from coordinates
     const [fromLocation, toLocation] = await Promise.all([this.findByCode(fromCode), this.findByCode(toCode)]);
 
     const distance = DistanceCalculator.calculateDistance(
@@ -99,9 +81,6 @@ export class LocationService {
     };
   }
 
-  /**
-   * Get distances from one location to all others
-   */
   async getDistancesFrom(fromCode: string): Promise<DistanceCalculationDto[]> {
     const fromLocation = await this.findByCode(fromCode);
     const allLocations = await this.locationRepository.find();
@@ -119,9 +98,6 @@ export class LocationService {
     return distances.sort((a, b) => a.distanceMiles - b.distanceMiles);
   }
 
-  /**
-   * Convert entity to DTO
-   */
   private toDto(location: Location): LocationDto {
     return {
       code: location.code,

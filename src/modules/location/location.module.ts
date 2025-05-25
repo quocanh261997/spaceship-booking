@@ -7,6 +7,6 @@ import { LocationRepository } from '@modules/location/location.repository';
 @Module({
   imports: [TypeOrmModule.forFeature([Location])],
   providers: [LocationService, LocationRepository],
-  exports: [LocationService], // Export for use in other modules
+  exports: [LocationService],
 })
 export class LocationModule {}

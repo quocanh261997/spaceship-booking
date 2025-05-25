@@ -15,9 +15,6 @@ export class SpaceshipService {
     private tripRepository: TripRepository,
   ) {}
 
-  /**
-   * Find all spaceships
-   */
   async findAll(): Promise<Spaceship[]> {
     return this.spaceshipRepository.find({
       relations: ['currentLocation'],
@@ -25,9 +22,6 @@ export class SpaceshipService {
     });
   }
 
-  /**
-   * Find spaceship by ID
-   */
   async findById(id: string): Promise<Spaceship | null> {
     return this.spaceshipRepository.findOne({
       where: { id },
@@ -46,7 +40,6 @@ export class SpaceshipService {
       `Finding available spaceships at ${departureLocationCode} for ${requestedDepartureTime.toISOString()}`,
     );
 
-    // Get all spaceships
     const allSpaceships = await this.spaceshipRepository.find();
     const availableSpaceships: Spaceship[] = [];
 

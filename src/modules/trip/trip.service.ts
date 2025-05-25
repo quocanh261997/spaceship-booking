@@ -103,9 +103,13 @@ export class TripService {
       }
 
       // Return alternative time offer without saving to database
-      if (!earliestAvailable.spaceshipId || !earliestAvailable.departureLocationCode || 
-          !earliestAvailable.destinationLocationCode || !earliestAvailable.departureAt || 
-          !earliestAvailable.arrivalAt) {
+      if (
+        !earliestAvailable.spaceshipId ||
+        !earliestAvailable.departureLocationCode ||
+        !earliestAvailable.destinationLocationCode ||
+        !earliestAvailable.departureAt ||
+        !earliestAvailable.arrivalAt
+      ) {
         throw new Error('Invalid trip details returned for alternative time offer');
       }
 
@@ -117,7 +121,8 @@ export class TripService {
         departureAt: earliestAvailable.departureAt.toISOString(),
         arrivalAt: earliestAvailable.arrivalAt.toISOString(),
         status: 'ALTERNATIVE_TIME_OFFERED',
-        message: 'No spaceship available at requested time. Please confirm if you would like to book for the alternative time shown.',
+        message:
+          'No spaceship available at requested time. Please confirm if you would like to book for the alternative time shown.',
         isProposal: true,
       };
     }
