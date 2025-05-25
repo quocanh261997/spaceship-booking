@@ -26,20 +26,19 @@ const baseConfig: DataSourceOptions = {
   type: 'postgres',
   url: databaseUrl,
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  logging: configService.get<string>('NODE_ENV') === 'development',
+  //logging: configService.get<string>('NODE_ENV') === 'development',
   ssl: isSSL ? { rejectUnauthorized: false } : false,
 };
 
 /**
  * Get database configuration for NestJS TypeORM module
  */
-export const getDatabaseConfig = (
-  configService: ConfigService,
-): TypeOrmModuleOptions => ({
-  ...baseConfig,
-  // NestJS specific options
-  synchronize: configService.get<string>('NODE_ENV') !== 'production',
-} as TypeOrmModuleOptions);
+export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOptions =>
+  ({
+    ...baseConfig,
+    // NestJS specific options
+    synchronize: configService.get<string>('NODE_ENV') !== 'production',
+  }) as TypeOrmModuleOptions;
 
 /**
  * Get TypeORM DataSource instance for migrations and CLI
