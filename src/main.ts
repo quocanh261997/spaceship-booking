@@ -28,7 +28,7 @@ async function bootstrap() {
 
   // Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle('SpaceRyder API')
+    .setTitle('Space Booking API')
     .setDescription('High-speed spaceship booking system API')
     .setVersion('1.0')
     .addTag('trips', 'Trip management endpoints')
@@ -40,7 +40,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  logger.log(`🚀 SpaceRyder API is running on: http://localhost:${port}`);
+  logger.log(`🚀 Space Booking API is running on: http://localhost:${port}`);
   logger.log(`📚 API Documentation available at: http://localhost:${port}/api/docs`);
 }
 
